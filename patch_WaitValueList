@@ -1,0 +1,122 @@
+diff -ur /home/drossetti/work/p4/userevents/sw/dev/gpu_drv/cuda_a/drivers/gpgpu/cuda/inc/cuda_etbl/tools_cuda_api_meta.h ./cuda/inc/cuda_etbl/tools_cuda_api_meta.h
+--- /home/drossetti/work/p4/userevents/sw/dev/gpu_drv/cuda_a/drivers/gpgpu/cuda/inc/cuda_etbl/tools_cuda_api_meta.h	2014-10-10 12:50:03.000000000 -0700
++++ ./cuda/inc/cuda_etbl/tools_cuda_api_meta.h	2014-11-14 15:56:54.819515326 -0800
+@@ -488,6 +488,7 @@
+     ACTION( cuda,        454,   cuPoke,                                        0)   \
+     ACTION( cuda,        455,   cuMemcpyInlineToDAsync,                        0)   \
+     ACTION( cuda,        456,   cuStreamWaitValue,                             0)   \
++    ACTION( cuda,        457,   cuStreamWaitValueList,                         0)   \
+ 
+ #endif // file guard
+ 
+diff -ur /home/drossetti/work/p4/userevents/sw/dev/gpu_drv/cuda_a/drivers/gpgpu/cuda/inc/cuda.h ./cuda/inc/cuda.h
+--- /home/drossetti/work/p4/userevents/sw/dev/gpu_drv/cuda_a/drivers/gpgpu/cuda/inc/cuda.h	2014-11-07 17:14:18.000000000 -0800
++++ ./cuda/inc/cuda.h	2014-11-14 15:57:00.988478134 -0800
+@@ -7578,6 +7578,8 @@
+ 
+ CUresult CUDAAPI cuStreamWaitValue(CUstream stream, CUdeviceptr addr, uint32_t val, unsigned int flags);
+ 
++CUresult CUDAAPI cuStreamWaitValueList(uint32_t count, CUstream stream, CUdeviceptr *addr, uint32_t *val, unsigned int *flags);
++
+ /**
+  * \brief Add a callback to a compute stream
+  *
+diff -ur /home/drossetti/work/p4/userevents/sw/dev/gpu_drv/cuda_a/drivers/gpgpu/cuda/src/api/apistream.c ./cuda/src/api/apistream.c
+--- /home/drossetti/work/p4/userevents/sw/dev/gpu_drv/cuda_a/drivers/gpgpu/cuda/src/api/apistream.c	2014-10-10 12:50:03.000000000 -0700
++++ ./cuda/src/api/apistream.c	2014-11-14 15:25:16.414036105 -0800
+@@ -371,6 +371,31 @@
+     return CUDA_SUCCESS;
+ }
+ 
++CUresult CUDAAPI
++cuapiStreamWaitValueList(uint32_t count, CUstream hStream, CUdeviceptr *addr, uint32_t *val, unsigned int *flags)
++{
++    CUresult status = CUDA_SUCCESS;
++    CUctx *ctx = NULL;
++    CUIstream *stream = NULL;
++
++    CU_TRACE_FUNCTION();
++
++    // validate arguments
++    status = cuiStreamInitCheck(hStream, CUI_STREAM_HANDLE_TYPE_EXPLICIT_LEGACY, &stream, &ctx);
++    if (CUDA_SUCCESS != status) {
++        CU_DEBUG_PRINT(("Invalid stream handle\n"));
++        return status;
++    }
++
++    status = cuiStreamWaitValueList(count, stream, (NvU64 *) addr, val, flags);
++    if (CUDA_SUCCESS != status) {
++        CU_ERROR_PRINT(("cuiStreamWaitValue failed\n"));
++        return status;
++    }
++
++    return CUDA_SUCCESS;
++}
++
+ static CUresult
+ cuapiStreamAddCallbackCommon(CUstream hStream, CUstreamCallback callback, void *userData, unsigned int flags, CUIstreamHandleType streamHandleType)
+ {
+diff -ur /home/drossetti/work/p4/userevents/sw/dev/gpu_drv/cuda_a/drivers/gpgpu/cuda/src/cui/cuistream.c ./cuda/src/cui/cuistream.c
+--- /home/drossetti/work/p4/userevents/sw/dev/gpu_drv/cuda_a/drivers/gpgpu/cuda/src/cui/cuistream.c	2014-10-23 06:21:22.000000000 -0700
++++ ./cuda/src/cui/cuistream.c	2014-11-14 15:25:26.400973822 -0800
+@@ -1040,6 +1040,48 @@
+     return CUDA_SUCCESS;
+ }
+ 
++CUresult cuiStreamWaitValueList(uint32_t count, CUIstream *stream, NvU64 *addr, NvU32 *val, unsigned int *flags)
++{
++    uint32_t idx;
++    CUctx *ctx = stream->ctx;
++    CUnvchannel *channel= NULL;
++    CUnvCurrent *nvCurrent = NULL;
++    NvU32 acqFlags = CUI_SEMAPHORE_ACQUIRE_FLAGS_NONE;
++    NvBool softFlush = NV_FALSE;
++    CU_TRACE_FUNCTION();
++
++    streamBeginPushOnChannel(channel, stream, &nvCurrent);
++
++    channel = streamManagerSelectChannel(stream->ctx->streamManager, CU_CHANNEL_COMPUTE, stream);
++
++    for (idx = 0; idx < count; idx++) { 
++        if ((flags[idx] & 0x3) == CU_STREAM_WAIT_VALUE_EQ) {
++            acqFlags |= CUI_SEMAPHORE_ACQUIRE_FLAGS_EQUAL;
++        }
++        else if ((flags[idx] & 0x3) == CU_STREAM_WAIT_VALUE_AND) {
++            acqFlags |= CUI_SEMAPHORE_ACQUIRE_FLAGS_AND;
++        }
++        if (flags[idx] & CU_STREAM_WAIT_VALUE_SOFT_FLUSH) {
++            softFlush = NV_TRUE;
++        }
++ 
++        nvCurrent = ctx->device->hal.semaphoreAcquire(
++            nvCurrent,
++            0, 0,
++            ctx,
++            addr[idx],
++            val[idx],
++            acqFlags);
++        if (softFlush) {
++            nvCurrent = ctx->device->hal.softFlush(nvCurrent);
++        }
++    }
++    streamEndPush(ctx->streamManager, nvCurrent, NULL);
++
++    return CUDA_SUCCESS;
++}
++
++
+ CUresult
+ cuiStreamWaitMarker(CUIstream *stream, CUctxMarker *marker, NvBool softFlush)
+ {
+diff -ur /home/drossetti/work/p4/userevents/sw/dev/gpu_drv/cuda_a/drivers/gpgpu/cuda/src/cui/cuistream.h ./cuda/src/cui/cuistream.h
+--- /home/drossetti/work/p4/userevents/sw/dev/gpu_drv/cuda_a/drivers/gpgpu/cuda/src/cui/cuistream.h	2014-10-10 12:50:03.000000000 -0700
++++ ./cuda/src/cui/cuistream.h	2014-11-14 15:56:44.629575874 -0800
+@@ -275,6 +275,8 @@
+ 
+ CUresult cuiStreamWaitValue(CUIstream *stream, NvU64 addr, NvU32 val, unsigned int flags);
+ 
++CUresult cuiStreamWaitValueList(uint32_t count, CUIstream *stream, NvU64 *addr, NvU32 *val, unsigned int *flags);
++
+ // Make a stream wait on a CPU semaphore.
+ CUresult cuiStreamWaitCpuSema(CUIstream *stream, CUcpuSemaRef *semaRef);
+ 

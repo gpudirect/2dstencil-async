@@ -1,0 +1,110 @@
+# Copyright (c) 2014, NVIDIA CORPORATION. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#  * Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  * Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#  * Neither the name of NVIDIA CORPORATION nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+# OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# Compilers
+include ../common.mk
+
+MPICC=gcc
+NVCC=$(CUDA)/bin/nvcc
+
+# Flags
+CFLAGS=-g -Wall -D_VALIDATE_ -DUSE_PROF
+NVCCFLAGS=-O3 -arch=compute_35 -code=sm_35 
+
+LDFLAGS = -ldl -lstdc++
+MPI_LDFLAGS=$(MPI_LIB) -lmpich
+CUDA_LDFLAGS=$(CUDA_LIB) -lcudart -L/usr/lib64 -lcuda
+OFA_LDFLAGS=$(OFA_LIB) -libverbs
+MP_LDFLAGS = $(MP_LIB) -lmp $(GDSYNC_LIB) -lgdsync
+
+# Commands
+all: 2dstencil_pack_sr 2dstencil_pack_ib 2dstencil_pack_sr_strong 2dstencil_pack_mp 2dstencil_pack_ib_strong 2dstencil_pack_mp_strong
+
+pack.o: pack.cu
+	$(NVCC) $(NVCCFLAGS) $(CUDA_INC) -c pack.cu -o pack.o 
+
+pack_strong.o: pack_strong.cu
+	$(NVCC) $(NVCCFLAGS) $(CUDA_INC) -c $? -o $@
+
+prof.o: prof.c
+	gcc -I./ ${EXTRA_FLAGS} -c $? -o $@
+
+cycles.o: cycles.c
+	gcc -I./ ${EXTRA_FLAGS} -c $? -o $@
+
+validate.o: validate.c
+	$(MPICC) $(CFLAGS) $(CUDA_INC) $(MPI_INC) -c $? -o $@
+
+validate_strong.o: validate_strong.c
+	$(MPICC) $(MPI_INC) $(CFLAGS) $(CUDA_INC) -c $? -o $@
+
+ib.o: ib.c
+	gcc ${MPI_INC} ${CUDA_INC} ${OFA_INC} -I./ -I/usr/include -c ib.c -o ib.o 
+
+ib_peersync.o: ib_peersync.c
+	gcc ${MPI_INC} ${CUDA_INC} ${OFA_INC} -I./ -c $? -o $@
+
+gpu.o: gpu.cu
+	$(NVCC) $(NVCCFLAGS) $(CUDA_INC) -I./ -I/usr/include -c gpu.cu -o gpu.o
+
+2dstencil_pack_sr.o: 2dstencil_pack_sr.c 
+	$(MPICC) $(CFLAGS) ${MPI_INC} $(CUDA_INC) -c $? -o $@ 
+
+2dstencil_pack_sr: pack.o 2dstencil_pack_sr.o validate.o
+	$(MPICC) 2dstencil_pack_sr.o pack.o validate.o -o $@ $(LDFLAGS) $(OFA_LDFLAGS) $(MPI_LDFLAGS) $(CUDA_LDFLAGS) 
+
+2dstencil_pack_sr_strong.o: 2dstencil_pack_sr_strong.c
+	$(MPICC) $(CFLAGS) ${MPI_INC} $(CUDA_INC) $(EXTRA_FLAGS) -c $? -o $@
+
+2dstencil_pack_sr_strong: pack_strong.o 2dstencil_pack_sr_strong.o validate_strong.o
+	$(MPICC) 2dstencil_pack_sr_strong.o pack_strong.o validate_strong.o -o $@ $(LDFLAGS) $(MPI_LDFLAGS) $(CUDA_LDFLAGS)
+
+2dstencil_pack_ib.o: 2dstencil_pack_ib.c
+	$(MPICC) $(CFLAGS) ${MPI_INC} $(CUDA_INC) $(OFA_INC) -c $? -o $@ 
+
+2dstencil_pack_ib: pack.o 2dstencil_pack_ib.o ib.o validate.o prof.o cycles.o
+	$(MPICC) 2dstencil_pack_ib.o pack.o ib.o validate.o prof.o cycles.o -o $@ $(LDFLAGS) $(MPI_LDFLAGS) $(CUDA_LDFLAGS) $(OFA_LDFLAGS)
+
+2dstencil_pack_ib_strong.o: 2dstencil_pack_ib_strong.c
+	$(MPICC) $(CFLAGS) ${MPI_INC} $(CUDA_INC) $(OFA_INC) -c $? -o $@ 
+
+2dstencil_pack_ib_strong: pack_strong.o 2dstencil_pack_ib_strong.o ib.o validate_strong.o prof.o cycles.o
+	$(MPICC) 2dstencil_pack_ib_strong.o pack_strong.o ib.o validate_strong.o prof.o cycles.o -o $@ $(LDFLAGS) $(MPI_LDFLAGS) ${CUDA_LDFLAGS} $(OFA_LDFLAGS)
+
+2dstencil_pack_mp.o: 2dstencil_pack_mp.c
+	$(MPICC) $(CFLAGS) $(MP_INC) $(MPI_INC) $(CUDA_INC) ${EXTRA_FLAGS} $(OFA_INC) -c $? -o $@
+
+2dstencil_pack_mp: pack.o 2dstencil_pack_mp.o prof.o cycles.o validate.o
+	$(MPICC) 2dstencil_pack_mp.o pack.o prof.o cycles.o validate.o -o $@ $(LDFLAGS) $(MPI_LDFLAGS) $(MP_LDFLAGS) $(OFA_LDFLAGS) $(CUDA_LDFLAGS)
+
+2dstencil_pack_mp_strong.o: 2dstencil_pack_mp_strong.c
+	$(MPICC) $(CFLAGS) $(MP_INC) $(MPI_INC) $(CUDA_INC) ${EXTRA_FLAGS} $(OFA_INC) -c $? -o $@
+
+2dstencil_pack_mp_strong: pack_strong.o 2dstencil_pack_mp_strong.o prof.o cycles.o validate_strong.o
+	$(MPICC) 2dstencil_pack_mp_strong.o pack_strong.o prof.o cycles.o validate_strong.o -o $@ $(LDFLAGS) $(MPI_LDFLAGS) $(MP_LDFLAGS) $(OFA_LDFLAGS) $(CUDA_LDFLAGS)
+
+clean:
+	rm -rf 2dstencil_pack_sr 2dstencil_pack_ib *.o 

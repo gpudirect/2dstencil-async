@@ -1,0 +1,9 @@
+#!/bin/bash
+
+export LD_LIBRARY_PATH=/home/drossetti/work/peersync/local/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/home/drossetti/work/p4/userevents/sw/gpgpu/bin/x86_64_Linux_debug:$LD_LIBRARY_PATH
+#export LD_LIBRARY_PATH=/home/drossetti/work/p4/userevents/sw/dev/gpu_drv/cuda_a/drivers/gpgpu/_out/Linux_amd64_release/bin:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/ivylogin/home/spotluri/PEERSYNC/peersync/sw/dev/gpu_drv/cuda_a/drivers/gpgpu/_out/Linux_amd64_release/bin:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/ivylogin/home/spotluri/MPI/mvapich2-2.0/install/lib:$LD_LIBRARY_PATH
+export PATH=/ivylogin/home/spotluri/MPI/mvapich2-2.0/install/bin:$PATH
+export LD_LIBRARY_PATH=/home/drossetti/work/peersync/local/lib/:$LD_LIBRARY_PATH
