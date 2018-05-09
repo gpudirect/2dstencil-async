@@ -24,10 +24,48 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-include ../common.mk
+#include ../common.mk
+# install path
+PREFIX ?= $(HOME)/gdasync
 
-CC=mpicc
-LD=mpic++
+CUDA_LIB :=
+CUDA_INC :=
+
+# # add standard CUDA dir
+CUDA      ?= /usr/local/cuda
+CUDA_LIB += $(CU_LDFLAGS) -L$(CUDA)/lib64 -L$(CUDA)/lib -L/usr/lib64/nvidia -L/usr/lib/nvidia
+CUDA_INC += $(CU_CPPFLAGS) -I$(CUDA)/include
+
+# # GPUDirect Async library
+GDSYNC      = $(PREFIX)
+GDSYNC_INC  = -I $(GDSYNC)/include
+GDSYNC_LIB  = -L $(GDSYNC)/lib
+
+# MP library
+MP     ?= $(PREFIX)
+MP_INC  = -I $(MP)/include
+MP_LIB  = -L $(MP)/lib
+
+# GPUDirect RDMA Copy library
+GDRCOPY     ?= $(PREFIX)
+GDRCOPY_INC  = -I $(GDRCOPY)/include
+GDRCOPY_LIB  = -L $(GDRCOPY)/lib
+
+# MPI is used in some tests
+MPI_HOME ?= /ivylogin/home/spotluri/MPI/mvapich2-2.0-cuda-gnu-install
+MPI_INC   = -I $(MPI_HOME)/include
+MPI_LIB   = -L $(MPI_HOME)/lib64
+
+CXX:=g++
+CC:=mpicc
+NVCC:=nvcc
+LD:=mpic++
+COMMON_CFLAGS:=-O2
+
+NVCC_ARCHS=-gencode arch=compute_35,code=sm_35
+NVCC_ARCHS+=-gencode arch=compute_50,code=compute_50
+NVCC_ARCHS+=-gencode arch=compute_60,code=compute_60
+
 
 EXTRA_FLAGS=-D_USE_NONBLOCKING_STREAMS_ -D_USE_STREAM_PRIORITY_ -D_NOWAIT_ON_SENDS_ -D_INTERIOR_FIRST_ -D_POLL_DWORD_LIST_ 
 # to enable validate
