@@ -149,4 +149,4 @@ clean:
 	rm -rf $(EXES) *.o 
 
 .PHONY: clean all depend
-include ../depend.mk
+#include ../depend.mk
