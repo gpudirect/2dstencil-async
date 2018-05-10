@@ -38,6 +38,7 @@
 #include <assert.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <time.h>
 
 #ifdef USE_PROF
 #include "prof.h"
@@ -121,6 +122,7 @@ int exchange (MPI_Comm comm2d, long long int size, int boundary, int iter_count,
     cudaEvent_t start_event, stop_event;
     cudaEvent_t *sendrecv_sync_event, *interior_sync_event;
     long int time_start, time_stop, time_prepost;
+    struct timespec start, stop;
     float time_elapsed; 
 
     /*streams*/
@@ -753,7 +755,8 @@ int exchange (MPI_Comm comm2d, long long int size, int boundary, int iter_count,
     complete_sync_wait = 0;
 
     /*timed iterations*/
-    time_start = cycles_to_ns(get_cycles());
+	clock_gettime(CLOCK_REALTIME, &start);
+    //time_start = cycles_to_ns(get_cycles());
 #ifndef _FREE_NETWORK_
     prepost_depth = (prepost_depth_global < iter_count) ? prepost_depth_global : iter_count;
     for (i=0; i<prepost_depth; i++) {
@@ -836,8 +839,9 @@ int exchange (MPI_Comm comm2d, long long int size, int boundary, int iter_count,
         }
     }
 #endif
-    time_stop = cycles_to_ns(get_cycles());
-    time_prepost = (time_stop - time_start); 
+    //time_stop = cycles_to_ns(get_cycles());
+    clock_gettime(CLOCK_REALTIME, &stop); 
+    time_prepost = stop.tv_nsec - start.tv_nsec; //(time_stop - time_start); 
 
 #if defined (_ENABLE_DRPROF_)
     char *tags;
