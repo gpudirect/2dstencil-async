@@ -756,7 +756,6 @@ int exchange (MPI_Comm comm2d, long long int size, int boundary, int iter_count,
 
     /*timed iterations*/
 	clock_gettime(CLOCK_REALTIME, &start);
-    //time_start = cycles_to_ns(get_cycles());
 #ifndef _FREE_NETWORK_
     prepost_depth = (prepost_depth_global < iter_count) ? prepost_depth_global : iter_count;
     for (i=0; i<prepost_depth; i++) {

@@ -33,6 +33,7 @@
 #include "validate.h"
 #include "ib.h"
 #include "pack.h"
+#include <time.h>
 
 #ifdef USE_PROF
 #include "prof.h"
@@ -84,6 +85,7 @@ int exchange (MPI_Comm comm2d, long long int size, int boundary, int iter_count,
     cudaEvent_t start_event, stop_event;
     float time_elapsed;
     long int time_start, time_stop, time_prepost;
+    struct timespec start, stop;
     cudaStream_t interior_stream, boundary_stream; 
     int complete_idx;
 
@@ -327,7 +329,7 @@ int exchange (MPI_Comm comm2d, long long int size, int boundary, int iter_count,
     CUDA_CHECK(cudaDeviceSynchronize());
     MPI_Barrier(MPI_COMM_WORLD);
 
-    time_start = cycles_to_ns(get_cycles());
+    clock_gettime(CLOCK_REALTIME, &start);
     /*post receives until prepost depth*/
 #ifndef _FREE_NETWORK_
     prepost_depth = (prepost_depth < iter_count) ? prepost_depth : iter_count;
@@ -366,8 +368,8 @@ int exchange (MPI_Comm comm2d, long long int size, int boundary, int iter_count,
         }
     }
 #endif
-    time_stop = cycles_to_ns(get_cycles());
-    time_prepost = (time_stop - time_start);
+    clock_gettime(CLOCK_REALTIME, &stop); 
+    time_prepost = stop.tv_nsec - start.tv_nsec; //(time_stop - time_start); 
 
 #if defined (_ENABLE_DRPROF_)
     const char *tags = "interior|pack|packsync|postsend|wait|unpack|boundary|gpusync|postrecv";

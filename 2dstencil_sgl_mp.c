@@ -38,6 +38,7 @@
 #include <string.h>
 #include <sys/uio.h>
 #include <stdio.h>
+#include <time.h>
 
 #ifdef USE_PROF
 #include "prof.h"
@@ -126,6 +127,7 @@ int exchange (MPI_Comm comm2d, long long int size, int boundary, int iter_count,
     cudaEvent_t start_event, stop_event, *sendrecv_sync_event, *interior_sync_event;
     float time_elapsed; 
     long int time_start, time_stop, time_prepost;
+    struct timespec start, stop;
     cudaStream_t interior_stream; 
     cudaStream_t boundary_sendrecv_stream;
     int complete_sreq_idx, complete_rreq_idx; 
@@ -598,7 +600,7 @@ int exchange (MPI_Comm comm2d, long long int size, int boundary, int iter_count,
     MPI_Barrier(MPI_COMM_WORLD);
 
     /*timed iterations*/
-    time_start = cycles_to_ns(get_cycles());
+    clock_gettime(CLOCK_REALTIME, &start);
 #ifndef _FREE_NETWORK_
     for (i=0; i<prepost_depth_iter; i++) {
         int temp_idx = rreq_idx; 
@@ -672,8 +674,8 @@ int exchange (MPI_Comm comm2d, long long int size, int boundary, int iter_count,
     }
 #endif
 
-    time_stop = cycles_to_ns(get_cycles());
-    time_prepost = (time_stop - time_start);
+    clock_gettime(CLOCK_REALTIME, &stop); 
+    time_prepost = stop.tv_nsec - start.tv_nsec; //(time_stop - time_start); 
 
 #if defined (_ENABLE_DRPROF_)
     const char *tags = "interior|pack|prepsend|postsend|postwait|unpack|boundary|postsync|waitsync|postrecv";

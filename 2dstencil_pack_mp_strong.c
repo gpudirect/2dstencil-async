@@ -32,6 +32,7 @@
 #include "pack_strong.h"
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 
 #ifdef USE_PROF
 #include "prof.h"
@@ -117,6 +118,7 @@ int exchange (MPI_Comm comm2d, int npx, int npy, long long int sizex, long long 
     /*events for tracking and timing*/
     cudaEvent_t start_event, stop_event, *sendrecv_sync_event, *interior_sync_event;
     long int time_start, time_stop, time_prepost;
+    struct timespec start, stop;
     float time_elapsed;
 
     /*streams*/
@@ -524,7 +526,7 @@ int exchange (MPI_Comm comm2d, int npx, int npy, long long int sizex, long long 
     complete_sync_wait = 0;
 
     /*timed iterations*/
-    time_start = cycles_to_ns(get_cycles());
+    clock_gettime(CLOCK_REALTIME, &start);
 #ifndef _FREE_NETWORK_
     prepost_depth = (prepost_depth_global < iter_count) ? prepost_depth_global : iter_count;
     for (i=0; i<prepost_depth; i++) {
@@ -565,8 +567,8 @@ int exchange (MPI_Comm comm2d, int npx, int npy, long long int sizex, long long 
         }
     }
 #endif
-    time_stop = cycles_to_ns(get_cycles());
-    time_prepost = (time_stop - time_start); 
+    clock_gettime(CLOCK_REALTIME, &stop); 
+    time_prepost = stop.tv_nsec - start.tv_nsec; //(time_stop - time_start); 
 
 #if defined (_ENABLE_DRPROF_)
     char *tags;
