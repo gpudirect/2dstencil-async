@@ -39,6 +39,7 @@
 #include <sys/uio.h>
 #include <stdio.h>
 #include <time.h>
+#include <assert.h>
 
 #ifdef USE_PROF
 #include "prof.h"

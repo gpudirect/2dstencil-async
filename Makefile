@@ -125,6 +125,9 @@ all: $(EXES)
 %: %.o
 	$(LD) -o $@ $^ $(LDFLAGS)
 
+%.o: %.cu
+	$(NVCC) $(NVCCFLAGS) $(CPPFLAGS) -c $<
+
 2dstencil_pack_mp: pack.o 2dstencil_pack_mp.o
 
 2dstencil_pack_sr: pack.o 2dstencil_pack_sr.o validate.o
@@ -148,5 +151,23 @@ all: $(EXES)
 clean:
 	rm -rf $(EXES) *.o 
 
-.PHONY: clean all depend
-#include ../depend.mk
+.PHONY: clean all depend 2dstencil_pack_mp 2dstencil_pack_sr 2dstencil_pack_sr_strong 2dstencil_pack_ib 2dstencil_pack_ib_strong 2dstencil_pack_mp 2dstencil_pack_mp_strong 2dstencil_pack_mp_strong_3streams 2dstencil_pack_mp_strong_3streams_uevent 2dstencil_sgl_mp
+
+depend dep: .depend.cc .depend.cpp .depend.cu
+
+.depend.cc: $(CSRCS)
+	@if [ ! -z "$(CSRCS)" ]; then ( $(CC) $(CPPFLAGS) -MM $(CSRCS) > .depend.cc ); fi
+
+.depend.cpp: $(CCSRCS)
+	@if [ ! -z "$(CCSRCS)" ]; then ( $(CXX) $(CPPFLAGS) -MM $(CCSRCS) > .depend.cpp ); fi
+
+.depend.cu: $(CUSRCS)
+	@if [ ! -z "$(CUSRCS)" ]; then ( $(NVCC) $(CPPFLAGS) $(NVCCFLAGS) -M $(CUSRCS) > .depend.cu ); fi
+
+.PHONY: depend dep
+
+ifeq (.depend, $(wildcard .depend))
+include .depend
+endif
+-include .depend.cc .depend.cpp .depend.cu
+
